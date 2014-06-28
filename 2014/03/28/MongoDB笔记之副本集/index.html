@@ -1,0 +1,334 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>MongoDB笔记之副本集 | iZheTeng</title>
+  <meta name="author" content="Newroc">
+  
+  <meta name="description" content="目的 
+mongodb 支持两种复制模式：
+
+ 主从复制（Master-Slave）
+ 副本集（Replica Set）
+
+ 我们下面主要介绍副本集模式，mongodb 副本集有以下几个作用 
+
+ 可以将主库中的数据异步的复制到多个从库中从而实现数据冗余 
+ 可以通过读写分离分散使从库分担主库的压力 
+ 当主库出现故障时可以进行故障转移">
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  <meta property="og:title" content="MongoDB笔记之副本集"/>
+  <meta property="og:site_name" content="iZheTeng"/>
+
+  
+    <meta property="og:image" content="undefined"/>
+  
+
+  
+  
+    <link href="/favicon.png" rel="icon">
+  
+  
+  <link rel="stylesheet" href="/css/bootstrap.min.css" media="screen" type="text/css">
+  <link rel="stylesheet" href="/css/font-awesome.css" media="screen" type="text/css">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <link rel="stylesheet" href="/css/highlight.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+
+  <script src="/js/jquery-2.0.3.min.js"></script>
+
+  <!-- analytics -->
+  
+
+</head>
+
+ <body>  
+  <nav id="main-nav" class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+    <div class="container">
+      <button type="button" class="navbar-header navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+		<span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+	  <a class="navbar-brand" href="/">iZheTeng</a>
+      <div class="collapse navbar-collapse nav-menu">
+		<ul class="nav navbar-nav">
+		  
+		  <li>
+			<a href="/archives" title="All the articles.">
+			  <i class="fa fa-archive"></i>Archives
+			</a>
+		  </li>
+		  
+		  <li>
+			<a href="/categories" title="All the categories.">
+			  <i class="fa fa-folder"></i>Categories
+			</a>
+		  </li>
+		  
+		  <li>
+			<a href="/tags" title="All the tags.">
+			  <i class="fa fa-tags"></i>Tags
+			</a>
+		  </li>
+		  
+		  <li>
+			<a href="/about" title="About me.">
+			  <i class="fa fa-user"></i>About
+			</a>
+		  </li>
+		  
+		</ul>
+      </div>
+    </div> <!-- container -->
+</nav>
+<div class="clearfix"></div>
+
+  <div class="container">
+  	<div class="content">
+    	 
+
+
+	
+		<div class="page-header">		
+			<h1> MongoDB笔记之副本集</h1>
+		</div>		
+	
+
+
+
+<div class="row post">
+	<!-- cols -->
+	
+	<div class="col-md-9">
+	
+
+			
+
+	<!-- content -->
+	<div class="mypage">		
+	    <h2 id="目的"> 目的 </h2>
+<p>mongodb 支持两种复制模式：</p>
+<ol>
+<li> 主从复制（Master-Slave）</li>
+<li> 副本集（Replica Set）</li>
+</ol>
+<p> 我们下面主要介绍副本集模式，mongodb 副本集有以下几个作用 </p>
+<ol>
+<li> 可以将主库中的数据异步的复制到多个从库中从而实现数据冗余 </li>
+<li> 可以通过读写分离分散使从库分担主库的压力 </li>
+<li> 当主库出现故障时可以进行故障转移 <a id="more"></a>
+
+</li>
+</ol>
+<h2 id="创建副本集"> 创建副本集 </h2>
+<h3 id="生成 key"> 生成 key</h3>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+</pre></td><td class="code"><pre><span class="built_in">sudo</span> <span class="built_in">echo</span> <span class="string">"myrs1key"</span> &gt; key1
+<span class="built_in">sudo</span> <span class="built_in">echo</span> <span class="string">"myrs1key"</span> &gt; key2
+<span class="built_in">sudo</span> <span class="built_in">echo</span> <span class="string">"myrs1key"</span> &gt; key3
+<span class="built_in">sudo</span> chmod <span class="number">600</span> /var/mongo/keys/*
+</pre></td></tr></table></figure>
+
+<blockquote>
+<p> 修改权限可以避免出现以下问题：</p>
+</blockquote>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre>(Tue Apr  <span class="number">8</span> <span class="number">10</span>:<span class="number">44</span>:<span class="number">05.399</span> permissions on /var/mongo/keys/key1 are too open)
+</pre></td></tr></table></figure>
+
+<h3 id="启动副本集"> 启动副本集 </h3>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre>1
+2
+3
+</pre></td><td class="code"><pre><span class="built_in">sudo</span> mongod --replSet rs1 --keyFile=/var/mongo/keys/key1 --port <span class="number">20001</span> --dbpath=/var/mongo/data/data1 --logpath=/var/mongo/logs/log1.log --bind_ip <span class="number">192.168</span>.<span class="number">1.151</span> --fork  --rest
+<span class="built_in">sudo</span> mongod --replSet rs1 --keyFile=/var/mongo/keys/key2 --port <span class="number">20002</span> --dbpath=/var/mongo/data/data2 --logpath=/var/mongo/logs/log2.log --fork
+<span class="built_in">sudo</span> mongod --replSet rs1 --keyFile=/var/mongo/keys/key3 --port <span class="number">20003</span> --dbpath=/var/mongo/data/data3 --logpath=/var/mongo/logs/log3.log --fork
+</pre></td></tr></table></figure>
+
+<h3 id="配置"> 配置 </h3>
+<p> 接着可以初始化副本集，首先使用命令行连接到主库，然后指定副本集的成员名称等信息，对副本集进行初始化。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+</pre></td><td class="code"><pre>mongo --port <span class="number">20001</span>
+config_rs1 = {_id : <span class="string">"rs1"</span>,
+    members : [{ _id:<span class="number">0</span>, host:<span class="string">"192.168.1.151:20001"</span>, priority:<span class="number">1</span> }, {_id:<span class="number">1</span>, host:<span class="string">"192.168.1.151:20002"</span> } , {_id:<span class="number">2</span>, host:<span class="string">"192.168.1.151:20003"</span> }]
+}
+rs.initiate(config_rs1);
+</pre></td></tr></table></figure><br>&gt; 许多例子中在添加成员主机名时都填写 localhost，这样只能在本地连接，远程连接时会出现以下问题：<br><figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre>Unable <span class="built_in">to</span> connect <span class="built_in">to</span> <span class="keyword">any</span> server that satisfies <span class="operator">the</span> selector CompositeServerSelector
+</pre></td></tr></table></figure>
+
+<h3 id="增加用户"> 增加用户 </h3>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre>1
+2
+</pre></td><td class="code"><pre>use admin
+db.addUser(<span class="string">"root"</span>,<span class="string">"abcdefg"</span>);
+</pre></td></tr></table></figure>
+
+<p> 重新启动 server 时增加—auth 参数 </p>
+<h3 id="使用 java 访问 mongodb"> 使用 java 访问 mongodb</h3>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+</pre></td><td class="code"><pre>MongoClientOptions.Builder builder=MongoClientOptions.builder();
+builder.requiredReplicaSetName(<span class="string">"rs1"</span>);
+builder.readPreference(ReadPreference.primaryPreferred());
+MongoClientOptions options=builder.build();
+List&lt;MongoCredential&gt; credentialsList=<span class="keyword">new</span> ArrayList&lt;MongoCredential&gt;();
+MongoCredential mongoCredential;
+mongoCredential = MongoCredential.createMongoCRCredential(<span class="string">"root"</span>,<span class="string">"admin"</span>, <span class="string">"abcdefg"</span>.toCharArray());
+credentialsList.add(mongoCredential);
+mongoClient=<span class="keyword">new</span> MongoClient(serverAddressList,credentialsList,options);
+DB db=mongoClient.getDB(dbName);
+DBObject obj=<span class="keyword">new</span> BasicDBObject(<span class="string">"testKey"</span>,<span class="string">"testValue"</span>);
+db.getCollection(<span class="string">"testdb"</span>).save(obj);
+</pre></td></tr></table></figure>
+	  
+	</div>
+
+	<div>
+  	<center>
+	<div class="pagination">
+<ul class="pagination">
+	 
+				
+    	<li class="prev"><a href="/2014/05/10/多个ActiveMQ_Broker实现互相连接/" class="alignleft prev"><i class="fa fa-arrow-circle-o-left"></i>Prev</a></li>
+  		
+
+        <li><a href="/archives"><i class="fa fa-archive"></i>Archive</a></li>
+
+		
+          <li class="next disabled"><a>Next<i class="fa fa-arrow-circle-o-right"></i></a></li>
+        
+	
+</ul>
+</div>
+
+    </center>
+	</div>
+	
+	<!-- comment -->
+	
+<section id="comment">
+  <h2 class="title">Comments</h2>
+
+  
+  <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  </div>
+  
+</section>
+
+	
+	</div> <!-- col-md-9/col-md-12 -->
+	
+	
+		<div class="col-md-3"> 
+
+	<!-- date -->
+	
+	<div class="meta-widget">
+	<i class="fa fa-clock-o"></i>
+	Mar 28 2014 
+	</div>
+	
+
+	<!-- categories -->
+    
+
+	<!-- tags -->
+	
+	<div class="meta-widget">
+	<a data-toggle="collapse" data-target="#tags"><i class="fa fa-tags"></i></a>		  
+    <ul id="tags" class="tag_box list-unstyled collapse in">	  
+	    
+  <li><a href="/tags/MongoDB/">MongoDB<span>1</span></a></li>
+    </ul>
+	</div>
+		
+
+	<!-- toc -->
+	<div class="meta-widget">
+	
+	   <a data-toggle="collapse" data-target="#toc"><i class="fa fa-bars"></i></a>
+	   <div id="toc" class="toc collapse in">
+			<ol class="toc-article"><li class="toc-article-item toc-article-level-2"><a class="toc-article-link" href="#目的"><span class="toc-article-text"> 目的 </span></a></li><li class="toc-article-item toc-article-level-2"><a class="toc-article-link" href="#创建副本集"><span class="toc-article-text"> 创建副本集 </span></a></li><ol class="toc-article-child"><li class="toc-article-item toc-article-level-3"><a class="toc-article-link" href="#生成 key"><span class="toc-article-text"> 生成 key</span></a></li><li class="toc-article-item toc-article-level-3"><a class="toc-article-link" href="#启动副本集"><span class="toc-article-text"> 启动副本集 </span></a></li><li class="toc-article-item toc-article-level-3"><a class="toc-article-link" href="#配置"><span class="toc-article-text"> 配置 </span></a></li><li class="toc-article-item toc-article-level-3"><a class="toc-article-link" href="#增加用户"><span class="toc-article-text"> 增加用户 </span></a></li><li class="toc-article-item toc-article-level-3"><a class="toc-article-link" href="#使用 java 访问 mongodb"><span class="toc-article-text"> 使用 java 访问 mongodb</span></a></li></ol>
+		</div>
+	
+	</div>
+	
+    <hr>
+	
+</div><!-- col-md-3 -->
+
+	
+
+</div><!-- row -->
+
+	</div>
+  </div>
+  <div class="container-narrow">
+  <footer> <p>
+  &copy; 2014 Newroc
+  
+      with help from <a href="http://zespia.tw/hexo/" target="_blank">Hexo</a> and <a href="http://getbootstrap.com/" target="_blank">Twitter Bootstrap</a>. Theme by <a href="http://github.com/wzpan/hexo-theme-freemind/">Freemind</a>.    
+</p> </footer>
+</div> <!-- container-narrow -->
+  
+<a id="gotop" href="#">   
+  <span>▲</span> 
+</a>
+
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/bootstrap.min.js"></script>
+<script src="/js/main.js"></script>
+
+
+<script type="text/javascript">
+var disqus_shortname = 'newroc';
+
+(function(){
+  var dsq = document.createElement('script');
+  dsq.type = 'text/javascript';
+  dsq.async = true;
+  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+}());
+</script>
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+</body>
+   </html>
